@@ -64,10 +64,9 @@ if (length(missing_opts) > 0) {
 }
 
 TOOL_COLOURS <- list(
-  gsva_gsva = "#05A005",
-  gsva_plage = "#E93CB5",
-  gsva_zscore = "#FF7E0D",
-
+  gsva_RankReference = "#05A005",
+  plage_RankReference = "#E93CB5",
+  zscore_RankReference = "#FF7E0D",
   gsva_RankExpr = "#47B847",
   gsva_DeltaCentroid  = "#237F23",
   plage_RankExpr = "#E691D0",
@@ -76,16 +75,25 @@ TOOL_COLOURS <- list(
   zscore_DeltaCentroid  = "#CC6624"
 )
 
-input_df <- read.table(opts$ranks_df, sep = '\t', header = TRUE, check.names = FALSE)
-input_df <- column_to_rownames(input_df, var = 'Geneid')
-reference_df <- read.table(opts$reference_df, sep = '\t', header = TRUE, check.names = FALSE)
-reference_df <- column_to_rownames(reference_df, var = 'Geneid')
+tool_colour = TOOL_COLOURS[[paste0(opts$algorithm, "_", opts$input_type)]]
+
 metadata_df <- read.table(opts$metadata, sep = '\t', header = TRUE, check.names = FALSE)
 genesets_list <- read.gmt(opts$genesets)
 
-
-tool_colour = TOOL_COLOURS[[paste0("gsva_", opts$algorithm)]]
-
-
-gsva_wrapper(opts$output_dir, input_df, reference_df, metadata_df, genesets_list, opts$algorithm, opts$name, tool_colour)
+# check analysis type to fetch correct input and run correct class wrapper
+if (opts$input_type == "RankExpr"){
+  input_df <- opts$ranks_df_diff
+  gsva_wrapper_classI_III(input_df, metadata_df, genesets_list, opts$name, opts$output_dir, opts$input_type, tool_colour)
+} else if (opts$input_type == "DeltaCentroid"){
+  input_df <- opts$ranks_df_diff
+  gsva_wrapper_classI_III(input_df, metadata_df, genesets_list, opts$name, opts$output_dir, opts$input_type, tool_colour)
+} else if (opts$input_type == "RankReference"){
+  input_df <- read.table(opts$ranks_df, sep = '\t', header = TRUE, check.names = FALSE)
+  input_df <- column_to_rownames(input_df, var = 'Geneid')
+  reference_df <- read.table(opts$reference_df, sep = '\t', header = TRUE, check.names = FALSE)
+  reference_df <- column_to_rownames(reference_df, var = 'Geneid')
+  gsva_wrapper_classII(opts$output_dir, input_df, reference_df, metadata_df, genesets_list, opts$algorithm, opts$name, tool_colour)
+} else {
+  stop(paste("Input type", opts$input_type, "not allowed for this tool"))
+}
 
