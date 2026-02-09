@@ -35,7 +35,7 @@ rank_dataframe <- function(data_to_rank){
 }
 
 
-gsva_wrapper <- function(output_dir, ranks_input, reference_ranks, metadata, genesets, algorithm, analysis_name, tool_colour){
+gsva_wrapper_classII <- function(output_dir, ranks_input, reference_ranks, metadata, genesets, algorithm, analysis_name, tool_colour){
 
     annot_colouring <- data.frame(row.names = colnames(ranks_input)) %>%
         mutate(annotation_group = metadata$annotation[match(colnames(ranks_input), metadata[, c("filename", "annotation")]$filename)]) %>% 
@@ -127,6 +127,70 @@ gsva_wrapper <- function(output_dir, ranks_input, reference_ranks, metadata, gen
         png_name = file.path(output_dir, 'ES_plots', paste0(analysis_name, "_annot.png")),
         plot_title = paste0(analysis_name, " - gsva_", toupper(algorithm)),
         tool_colour = tool_colour, wannotation = annot_colouring, wlegend = TRUE)
+}
+
+gsva_wrapper_classI_III <- function(ranks_data, metadata, genesets, analysis_name, output_folder, input_type, tool_colour, algorithm){
+
+    annot_colouring <- data.frame(row.names = colnames(ranks_data)) %>%
+        mutate(annotation = metadata$annotation[match(colnames(ranks_data), metadata[, c("filename", "annotation")]$filename)]) %>% 
+        dplyr::arrange(annotation)
+
+    ranks_data_ordered <- ranks_data %>% 
+        dplyr::select(rownames(annot_colouring)) %>%
+        mutate(across(where(is.integer), as.numeric))
+    
+    invisible(lapply(c('ES_matrix', 'ES_plots'), function(x) dir.create(file.path(output_folder, x), recursive = TRUE)))
+
+    if (toupper(algorithm) == 'GSVA'){
+        gsvaparam_object <- gsvaParam(as.matrix(ranks_data_ordered), genesets,
+                                        kcdf = 'auto', sparse = FALSE,
+                                        minSize = 10, use = 'na.rm')
+    } else if (toupper(algorithm) == 'PLAGE'){
+        gsvaparam_object <- plageParam(as.matrix(ranks_data_ordered), genesets, minSize = 10)
+    } else if (toupper(algorithm) == 'ZSCORE'){
+        gsvaparam_object <- zscoreParam(as.matrix(ranks_data_ordered), genesets, minSize = 10)
+    } else if (toupper(algorithm) == 'SSGSEA'){
+        gsvaparam_object <- ssgseaParam(as.matrix(ranks_data_ordered), genesets, normalize = TRUE, minSize = 10, use = 'na.rm')
+    } else {
+        message = "ERROR: Invalid algorithm specified, must be one of [GSVA, PLAGE, ZSCORE, SSGSEA]"
+        stop(message)
+    }
+    ssgsea_results <- as.data.frame(gsva(gsvaparam_object, verbose = T))
+    ssgsea_output <- ssgsea_results[order(rownames(ssgsea_results)), , drop = FALSE] # genesets in alphabetical order
+    write.table(rownames_to_column(ssgsea_output, var = 'GOI_Set'), file.path(output_folder, paste0(analysis_name, "-fullNES.tsv")), sep ='\t', quote = FALSE, row.names = FALSE)
+
+    plot_GSEApheatmap_wNAs(ssgsea_output,
+        file.path(output_folder, 'ES_plots', paste0(analysis_name, ".png")),
+        paste0(analysis_name, " - ssgsea_", input_type),
+        tool_colour, wannotation = annot_colouring)
+    plot_GSEApheatmap_wNAs(ssgsea_output,
+        file.path(output_folder, 'ES_plots', paste0(analysis_name, "_annot.png")),
+        paste0(analysis_name, " - ssgsea_", input_type),
+        tool_colour, wannotation = annot_colouring, wlegend = TRUE)
+
+    # iterate throgh annotation groups for subplots/individual ES matrices
+    annotation_list <- unique(metadata$annotation)
+    for (annotation_group in annotation_list){
+
+        annotation_group_og <- annotation_group
+        # simpler/shorter name saving for later (also avoid file saving issue with spaces)
+        if (grepl("\\(", annotation_group) & grepl("\\)", annotation_group)) {
+            annotation_group <- sub(".*\\((.*)\\).*", "\\1", annotation_group)
+        }
+        annotation_group <- gsub(' ', '_', gsub('/', '-', gsub(' / ', '-', annotation_group)))
+        print(annotation_group)
+
+        metadata_of_annotation <- metadata %>% 
+            filter(annotation == annotation_group_og)
+        ssgsea_output_annot <- ssgsea_output[, colnames(ssgsea_output) %in% metadata_of_annotation$filename, drop = FALSE]
+        
+        write.table(rownames_to_column(ssgsea_output_annot, var = 'GOI_Set'), file.path(output_folder, 'ES_matrix', paste0(annotation_group, ".tsv")), sep = '\t', quote = FALSE, row.names = FALSE)
+        
+        plot_GSEApheatmap_wNAs(ssgsea_output_annot,
+            file.path(output_folder, 'ES_plots', paste0(annotation_group, '.png')),
+            paste0(annotation_group_og, " - ssgsea_", input_type),
+            tool_colour)
+    }
 }
 
 
