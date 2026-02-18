@@ -82,7 +82,7 @@ genesets_list <- read.gmt(opts$genesets)
 
 # check analysis type to fetch correct input and run correct class wrapper
 if (opts$input_type == "RankExpr"){
-  input_df <- opts$ranks_df_diff
+  input_df <- opts$ranks_df
   gsva_wrapper_classI_III(input_df, metadata_df, genesets_list, opts$name, opts$output_dir, opts$input_type, tool_colour)
 } else if (opts$input_type == "DeltaCentroid"){
   input_df <- opts$ranks_df_diff
