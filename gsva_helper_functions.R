@@ -1,40 +1,3 @@
-
-rank_on_annotation <- function(input_df, metadata){
-    # rank based on annotation of interest from metadata
-    # 1- divides by annotation group
-    # 2- ranks each sample in the annotation group
-    # 3- computes centroid as mean of rankings of all annotation group samples
-    # returns df with centroid of each subtype
-
-    input_df_ranked_full <- data.frame(row.names = row.names(input_df))
-    print('-----Ranking on annotation------')
-    print('Annotation groups included:')
-    for (annotation_group in unique(metadata$annotation)){
-        samples <- metadata %>% filter(annotation == annotation_group) %>% filter(filename %in% names(input_df)) %>% select(filename)
-        if (dim(samples)[1] > 0){
-            print(paste('-', annotation_group))
-            input_df_ranked_subtype <- rank_dataframe(input_df[, samples$filename])
-            centroid <- apply(input_df_ranked_subtype, 1, mean)
-            input_df_ranked_full[, annotation_group] <- as.data.frame(centroid)$centroid
-            # input_df_ranked_full <- cbind(input_df_ranked_full, t(input_df_ranked))
-        }
-    }
-    return(input_df_ranked_full)
-}
-
-
-rank_dataframe <- function(data_to_rank){
-    # rank all columns independently in a dataframe
-    data_ranked <- data.frame(row.names = row.names(data_to_rank))
-    for (samplename in names(data_to_rank)) {
-        data_wsample_ranking <- data_to_rank %>%
-            mutate(ranking = rank(.[,samplename], ties.method = "min"))
-        data_ranked[, samplename] <- as.numeric(data_wsample_ranking$ranking)
-    }
-    return(data_ranked)
-}
-
-
 gsva_wrapper_classII <- function(output_dir, ranks_input, reference_ranks, metadata, genesets, algorithm, analysis_name, tool_colour){
 
     annot_colouring <- data.frame(row.names = colnames(ranks_input)) %>%
@@ -47,8 +10,6 @@ gsva_wrapper_classII <- function(output_dir, ranks_input, reference_ranks, metad
     gsva_output_full <- data.frame(GOI_set = sort(names(genesets)))
     invisible(lapply(c('ES_matrix', 'ES_plots'), function(x) dir.create(file.path(output_dir, x), recursive = TRUE)))
 
-    # reference_df_ranked_annot <- rank_on_annotation(reference_df, metadata)
-    # reference_df_ranked_annot <- rank_dataframe(reference_df) # only for GSEdata
     # run algorithm across annotation group, e.g. sample from cancer type against all other cancer types
     for (annotation_group in annotation_list){
 
@@ -70,11 +31,9 @@ gsva_wrapper_classII <- function(output_dir, ranks_input, reference_ranks, metad
         # each sample ran individually against the rest
         for (i in 1:length(names(ranks_input_filt))){
             sample <- names(ranks_input_filt)[[i]]
-            # print(paste('Sample', i, '-', sample))
             sample_df <- ranks_input_filt %>% select(sample)
             sample_df <- sample_df[!is.na(sample_df), , drop = F]
             input_df <- merge(sample_df, reference_ranks, by = "row.names", all = TRUE)
-            # print(dim(input_df))
             input_df <- column_to_rownames(input_df, var = 'Row.names')
             input_df[] <- lapply(input_df, function(x) as.numeric(as.character(x)))
             
@@ -100,8 +59,6 @@ gsva_wrapper_classII <- function(output_dir, ranks_input, reference_ranks, metad
             sample_output['GOI_set'] <- row.names(sample_output)
             gsva_output <- merge(gsva_output, sample_output, by = "GOI_set", all = TRUE)
         }
-        # print(head(gsva_output))
-        # print(names(gsva_output))
         gsva_output <- column_to_rownames(gsva_output, var = 'GOI_set')
         gsva_output <- gsva_output[order(rownames(gsva_output)), , drop = FALSE] # genesets in alphabetical order
         plot_GSEApheatmap_wNAs(gsva_output,
@@ -205,7 +162,7 @@ plot_GSEApheatmap_wNAs <- function(ES_matrix, png_name, plot_title, tool_colour,
     
     # --- Scale columns ignoring NAs ---
     scale_columns <- function(mat) {
-        out <- mat  # keep original values unless scaling is appropriate
+        out <- mat
         
         for (j in seq_len(ncol(mat))) {
             col <- mat[, j]
